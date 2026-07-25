@@ -3,6 +3,10 @@ name: build-keycloak-hardened
 on:
   push:
     branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - .github/workflows/build-keycloak.yml
   workflow_dispatch:
 
 env:
