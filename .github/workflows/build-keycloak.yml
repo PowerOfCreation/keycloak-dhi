@@ -29,7 +29,7 @@ jobs:
       - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
-      # Pull der DHI-Basis von dhi.io (Docker-ID + PAT, kein Extra-Account)
+      # Pull the DHI base from dhi.io (Docker ID + PAT, no extra account)
       - name: Login to dhi.io
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -37,21 +37,21 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Push in deinen eigenen Namespace
+      # Push into your own namespace
       - name: Login to Docker Hub
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Keycloak-Version aus Dockerfile lesen
+      - name: Read Keycloak version from Dockerfile
         id: ver
         run: |
-          # Runtime-Stage = FROM-Zeile ohne "AS <name>" (Builder-Stage ist die -dev-Variante)
+          # Runtime stage = FROM line without "AS <name>" (builder stage is the -dev variant)
           KC=$(awk '/^FROM dhi\.io\/keycloak:/ && !/ AS /{ match($0,/:[^@ ]+/); print substr($0,RSTART+1,RLENGTH-1) }' Dockerfile)
           echo "kc=$KC" >> "$GITHUB_OUTPUT"
 
-      - name: Release-Tag ermitteln
+      - name: Determine release tag
         id: rel
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -67,10 +67,10 @@ jobs:
                 END { print m + 0 }')
           echo "tag=${prefix}$((last + 1))" >> "$GITHUB_OUTPUT"
 
-      # Push ohne Tags (by digest) - erst nach bestandenem Smoke-Test werden
-      # unten Tags auf genau dieses Manifest gesetzt. So sieht kein
-      # Konsument je ein Image, das nicht gebootet wurde.
-      - name: Build & Push (by digest, noch ohne Tags)
+      # Push without tags (by digest) - tags are only set on this exact
+      # manifest below, after the smoke test passes. That way no consumer
+      # ever sees an image that hasn't been booted.
+      - name: Build & Push (by digest, no tags yet)
         id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
@@ -85,19 +85,19 @@ jobs:
           provenance: mode=max
           sbom: true
 
-      - name: Digest pruefen
+      - name: Verify digest
         run: |
           if [ -z "${{ steps.build.outputs.digest }}" ]; then
-            echo "::error::Build hat keinen Digest geliefert"
+            echo "::error::Build did not produce a digest"
             exit 1
           fi
 
-      - name: Smoke-Test (bootet den gepushten Digest gegen Postgres)
+      - name: Smoke test (boot the pushed digest against Postgres)
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           set -euo pipefail
-          # Exakt das Artefakt, das gleich getaggt wird - kein separater Test-Build.
+          # Exactly the artifact that's about to be tagged - no separate test build.
           docker pull "${IMAGE}@${DIGEST}"
 
           docker network create kc-smoke
@@ -106,33 +106,33 @@ jobs:
             -e POSTGRES_PASSWORD=smoke -e POSTGRES_USER=keycloak -e POSTGRES_DB=keycloak \
             postgres:17@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d
 
-          # KC_DB/KC_HEALTH_ENABLED/KC_METRICS_ENABLED sind Build-Time-Optionen und
-          # bereits in der Builder-Stage eingebacken (siehe Dockerfile) - hier nicht setzen.
-          # KC_HTTP_ENABLED/KC_HOSTNAME_STRICT sind noetig, weil "start --optimized"
-          # sonst TLS erwartet und ohne Zertifikat abbricht.
+          # KC_DB/KC_HEALTH_ENABLED/KC_METRICS_ENABLED are build-time options already
+          # baked into the builder stage (see Dockerfile) - don't set them here.
+          # KC_HTTP_ENABLED/KC_HOSTNAME_STRICT are needed because "start --optimized"
+          # otherwise expects TLS and fails without a certificate.
           docker run -d --name kc --network kc-smoke -p 9000:9000 \
             -e KC_DB_URL_HOST=pg -e KC_DB_USERNAME=keycloak -e KC_DB_PASSWORD=smoke \
             -e KC_HTTP_ENABLED=true -e KC_HOSTNAME_STRICT=false \
             -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=smoke-only \
             "${IMAGE}@${DIGEST}"
 
-          # Management-Port 9000, nicht 8080 (Keycloak 26 Health-Endpoint).
-          # curl laeuft auf dem Runner: die DHI-Runtime ist minimal und hat kein curl.
+          # Management port 9000, not 8080 (Keycloak 26 health endpoint).
+          # curl runs on the runner: the DHI runtime is minimal and has no curl.
           for i in $(seq 1 60); do
             if curl -fsS http://localhost:9000/health/ready >/dev/null 2>&1; then
-              echo "ready nach ~$((i * 10))s"
+              echo "ready after ~$((i * 10))s"
               exit 0
             fi
             sleep 10
           done
-          echo "::error::Keycloak wurde innerhalb von 600s nicht ready"
+          echo "::error::Keycloak did not become ready within 600s"
           exit 1
 
-      - name: Smoke-Logs bei Fehler
+      - name: Smoke test logs on failure
         if: failure()
         run: docker logs kc 2>&1 | tail -100 || true
 
-      - name: Tags promoten (kein Rebuild - selbes Manifest wie im Smoke-Test)
+      - name: Promote tags (no rebuild - same manifest as the smoke test)
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
           TAG: ${{ steps.rel.outputs.tag }}
@@ -145,11 +145,11 @@ jobs:
             --tag "${IMAGE}:${KC}-${{ github.sha }}" \
             "${IMAGE}@${DIGEST}"
 
-          # Digest-Erhaltung nicht annehmen, sondern verifizieren.
+          # Don't assume digest preservation - verify it.
           for t in "${TAG}" "${KC}" "${KC}-${{ github.sha }}"; do
             got=$(docker buildx imagetools inspect "${IMAGE}:${t}" --format '{{.Manifest.Digest}}')
             if [ "$got" != "$DIGEST" ]; then
-              echo "::error::${t} zeigt auf ${got}, erwartet ${DIGEST}"
+              echo "::error::${t} points to ${got}, expected ${DIGEST}"
               exit 1
             fi
           done
@@ -157,13 +157,13 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
-      - name: Image signieren (keyless, GitHub OIDC)
+      - name: Sign image (keyless, GitHub OIDC)
         run: |
-          # --recursive signiert Index UND jedes Arch-Manifest samt Attestations,
-          # sonst schlaegt "cosign verify" auf dem amd64/arm64-Kind-Digest fehl.
+          # --recursive signs the index AND every arch manifest including attestations,
+          # otherwise "cosign verify" fails on the amd64/arm64 child digest.
           cosign sign --yes --recursive "${IMAGE}@${{ steps.build.outputs.digest }}"
 
-      - name: Trivy-Scan (SARIF, nicht blockierend)
+      - name: Trivy scan (SARIF, non-blocking)
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           image-ref: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
@@ -171,14 +171,14 @@ jobs:
           output: trivy-results.sarif
           exit-code: "0"
 
-      - name: SARIF hochladen
+      - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
         if: always()
         continue-on-error: true
         with:
           sarif_file: trivy-results.sarif
 
-      - name: Release erstellen
+      - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.rel.outputs.tag }}
@@ -195,43 +195,43 @@ jobs:
           **Image:** `__IMAGE__`
           **Digest:** `__DIGEST__`
 
-          ### Pull per Digest (empfohlen, unveränderlich)
+          ### Pull by digest (recommended, immutable)
 
           ```
           docker pull __IMAGE__@__DIGEST__
           ```
 
-          ### Pull per Tag
+          ### Pull by tag
 
           ```
           docker pull __IMAGE__:__TAG__
           ```
 
-          ### Gepushte Tags
+          ### Pushed tags
 
           - `__IMAGE__:__TAG__`
           - `__IMAGE__:__KC__`
           - `__IMAGE__:__KC__-__SHA__`
 
-          ### Plattformen
+          ### Platforms
 
           - linux/amd64
           - linux/arm64
 
-          ### Basis-Image
+          ### Base image
 
           `__BASE__`
 
-          ### Smoke-Test
+          ### Smoke test
 
-          Dieser Digest wurde vor dem Taggen als Container gestartet (gegen Postgres) und hat
-          `/health/ready` erfolgreich gemeldet.
+          This digest was started as a container (against Postgres) before tagging and
+          successfully reported `/health/ready`.
 
-          ### Signatur verifizieren
+          ### Verify signature
 
-          Index und jedes Arch-Manifest sind signiert - der Befehl funktioniert auf `__DIGEST__`
-          und auf jedem einzelnen Platform-Digest (`docker buildx imagetools inspect
-          __IMAGE__@__DIGEST__` zeigt die Kind-Digests).
+          Both the index and every arch manifest are signed - the command below works on
+          `__DIGEST__` as well as on each individual platform digest (`docker buildx
+          imagetools inspect __IMAGE__@__DIGEST__` shows the child digests).
 
           ```
           cosign verify __IMAGE__@__DIGEST__ \

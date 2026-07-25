@@ -1,84 +1,85 @@
 # keycloak-dhi
 
-Gehärtetes Keycloak-Image auf Basis von [Docker Hardened Images](https://docs.docker.com/dhi/) (DHI),
-mit Postgres fest eingebacken (`kc.sh build`), automatisiert gebaut und nach
-`docker.io/powerofcreation/keycloak` gepusht.
+Hardened Keycloak image based on [Docker Hardened Images](https://docs.docker.com/dhi/) (DHI),
+with Postgres baked in (`kc.sh build`), built automatically and pushed to
+`docker.io/powerofcreation/keycloak`.
 
-## Image beziehen
+## Getting the image
 
 ```bash
-# per Digest (empfohlen, unveränderlich)
+# by digest (recommended, immutable)
 docker pull docker.io/powerofcreation/keycloak@sha256:<digest>
 
-# per Tag
+# by tag
 docker pull docker.io/powerofcreation/keycloak:<keycloak-version>
 ```
 
-Gepushte Tags pro Build:
+Tags pushed per build:
 
-- `<keycloak-version>` (z. B. `26.7.0`)
+- `<keycloak-version>` (e.g. `26.7.0`)
 - `<keycloak-version>-<git-sha>`
-- `<keycloak-version>-r<n>` (fortlaufende Release-Nummer, siehe [Releases](../../releases))
+- `<keycloak-version>-r<n>` (sequential release number, see [Releases](../../releases))
 
-Es gibt bewusst keinen `latest`-Tag — jeder Konsument pinnt explizit auf eine Version oder einen Digest.
+There is deliberately no `latest` tag — every consumer pins explicitly to a version or a digest.
 
-## Wie das Image gehärtet ist
+## How the image is hardened
 
-Beide Build-Stages nutzen DHI:
+Both build stages use DHI:
 
-- **Builder:** `dhi.io/keycloak:<version>-dev` — die DHI-eigene Keycloak-Distribution (inkl. der von
-  Docker gepflegten CVE-Patches, z. B. Netty-Overrides), nicht der ungehärtete Upstream-Build.
-- **Runtime:** `dhi.io/keycloak:<version>` — läuft nonroot (`uid=gid=65532`), minimale Paketbasis.
+- **Builder:** `dhi.io/keycloak:<version>-dev` — Docker's own hardened Keycloak distribution
+  (including Docker-maintained CVE patches, e.g. Netty overrides), not the unhardened upstream
+  build.
+- **Runtime:** `dhi.io/keycloak:<version>` — runs nonroot (`uid=gid=65532`), minimal package base.
 
-Das Ergebnis enthält also durchgängig JARs, JRE und OS aus der gehärteten Distribution, nicht nur die
-OS-Schicht.
+The result therefore has JARs, JRE, and OS consistently from the hardened distribution, not just
+the OS layer.
 
-## Supply-Chain-Attestations
+## Supply-chain attestations
 
-Jeder Build erzeugt:
+Every build produces:
 
-- **SBOM** (SPDX/CycloneDX, via BuildKit/Syft) — vollständiges Inventar der finalen Image-Stage,
-  inklusive der aus dem Builder kopierten Keycloak-JARs.
-- **Provenance** (`mode=max`, SLSA) — Dockerfile, Build-Args und Base-Image-Digest sind enthalten.
-- **cosign-Signatur** (keyless, über GitHub OIDC), `--recursive` — signiert sind der Multi-Arch-Index
-  *und* jedes einzelne Plattform-Manifest (inkl. der Attestation-Manifeste). `cosign verify`
-  funktioniert also sowohl auf dem Index-Digest als auch auf dem amd64- oder arm64-Kind-Digest.
-- **Smoke-Test** — bevor Tags gesetzt werden, wird der gepushte (noch ungetaggte) Digest gegen eine
-  echte Postgres-Instanz gestartet und `/health/ready` geprüft. Erst danach zeigen `:<version>` und
-  `:<version>-r<n>` überhaupt auf das Image; bei Fehlschlag bleibt es ein untagged Manifest ohne
-  Release.
-- **Trivy-Scan** (SARIF) — Ergebnisse im [Security-Tab](../../security/code-scanning) des Repos.
+- **SBOM** (SPDX, via BuildKit/Syft) — a complete inventory of the final image stage, including
+  the Keycloak JARs copied from the builder.
+- **Provenance** (`mode=max`, SLSA) — includes the Dockerfile, build args, and base image digest.
+- **cosign signature** (keyless, via GitHub OIDC), `--recursive` — signs the multi-arch index
+  *and* every individual platform manifest (including the attestation manifests). `cosign verify`
+  therefore works on both the index digest and the amd64 or arm64 child digest.
+- **Smoke test** — before tags are set, the pushed (still untagged) digest is started against a
+  real Postgres instance and checked for `/health/ready`. Only after that do `:<version>` and
+  `:<version>-r<n>` point at the image at all; on failure it stays an untagged manifest with no
+  release.
+- **Trivy scan** (SARIF) — results in the repo's [Security tab](../../security/code-scanning).
 
-### Verifizieren
+### Verifying
 
 ```bash
-# Signatur
+# Signature
 cosign verify docker.io/powerofcreation/keycloak@sha256:<digest> \
   --certificate-identity-regexp '^https://github.com/PowerOfCreation/keycloak-dhi/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
-# SBOM abrufen
+# Fetch SBOM
 docker buildx imagetools inspect docker.io/powerofcreation/keycloak@sha256:<digest> --format '{{ json .SBOM }}'
 
-# Provenance abrufen (zeigt u. a. den Base-Image-Digest von dhi.io/keycloak)
+# Fetch provenance (shows, among other things, the base image digest of dhi.io/keycloak)
 docker buildx imagetools inspect docker.io/powerofcreation/keycloak@sha256:<digest> --format '{{ json .Provenance }}'
 
-# DHIs eigene signierte SBOM/VEX/CVE-Attestations der Basis direkt einsehen
+# View DHI's own signed SBOM/VEX/CVE attestations of the base image directly
 docker scout attest list dhi.io/keycloak:<version>
 ```
 
-### Was durchgereicht wird — und was nicht
+### What's carried over — and what isn't
 
-Das gepushte Image bekommt einen eigenen, vollständigen SBOM über den gesamten finalen Dateisystem-Inhalt
-(Base-Layer *und* Keycloak-JARs) — das deckt den praktischen Anwendungsfall "SBOM für Konsumenten" ab.
+The pushed image gets its own complete SBOM covering the entire final filesystem content (base
+layer *and* Keycloak JARs) — that covers the practical "SBOM for consumers" use case.
 
-Was **nicht** automatisch vererbt wird: Docker's eigene signierte SBOM-/VEX-/CVE-Attestations der
-`dhi.io/keycloak`-Basis. Ein davon abgeleitetes Image bekommt frische, eigene Attestations; einen
-Merge-Mechanismus zwischen Base- und Derived-Image-Attestations gibt es nicht. Wer die DHI-Attestations
-der Basis selbst einsehen will, nutzt den Base-Image-Digest aus der Provenance und ruft sie direkt bei
-DHI ab (`docker scout attest list`, s. o.).
+What is **not** automatically inherited: Docker's own signed SBOM/VEX/CVE attestations of the
+`dhi.io/keycloak` base. An image derived from it gets fresh, own attestations; there is no merge
+mechanism between base and derived image attestations. Anyone who wants to inspect the base's DHI
+attestations themselves uses the base image digest from the provenance and fetches them directly
+from DHI (`docker scout attest list`, see above).
 
 ## Renovate
 
-`renovate.json5` hält `dhi.io/keycloak` (Builder- und Runtime-Tag) in einer gemeinsamen Gruppe, damit
-beide Stages nie auf unterschiedlichen Keycloak-Versionen landen.
+`renovate.json5` keeps `dhi.io/keycloak` (builder and runtime tag) in one group so both stages
+never end up on different Keycloak versions.

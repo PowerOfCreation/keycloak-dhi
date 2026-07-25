@@ -1,26 +1,26 @@
 # Security Policy
 
-## Meldung von Sicherheitslücken
+## Reporting vulnerabilities
 
-Bitte Sicherheitslücken in diesem Repository (Dockerfile, Build-Pipeline) über
-[GitHub Security Advisories](https://github.com/PowerOfCreation/keycloak-dhi/security/advisories/new) melden,
-nicht über öffentliche Issues.
+Please report vulnerabilities in this repository (Dockerfile, build pipeline) via
+[GitHub Security Advisories](https://github.com/PowerOfCreation/keycloak-dhi/security/advisories/new),
+not via public issues.
 
-Für Schwachstellen in Keycloak selbst gilt der Meldeweg des Upstream-Projekts:
+For vulnerabilities in Keycloak itself, use the upstream project's reporting channel:
 https://www.keycloak.org/security
 
-## Unterstützte Versionen
+## Supported versions
 
-Nur der jeweils in `Dockerfile` gepinnte Keycloak-Release wird gebaut und gepflegt. Ältere
-Image-Tags erhalten keine Patches; auf die neueste Version aktualisieren.
+Only the Keycloak release currently pinned in `Dockerfile` is built and maintained. Older
+image tags do not receive patches; update to the latest version.
 
-## Wie diese Pipeline Sicherheit adressiert
+## How this pipeline addresses security
 
-- Basis-Image: [Docker Hardened Images](https://docs.docker.com/dhi/) für alle Build- und
-  Runtime-Stages (kein ungehärteter Upstream-Layer im finalen Image).
-- SBOM (SPDX/CycloneDX via BuildKit) und Provenance (`mode=max`) werden bei jedem Build erzeugt.
-- Images werden per `cosign` keyless (GitHub OIDC) signiert.
-- Jeder Build wird mit Trivy gescannt; Ergebnisse landen im GitHub-Security-Tab (Code Scanning).
-- Renovate hält Base-Image-Digests und Keycloak-Version aktuell.
+- Base image: [Docker Hardened Images](https://docs.docker.com/dhi/) for all build and runtime
+  stages (no unhardened upstream layer in the final image).
+- SBOM (SPDX via BuildKit) and provenance (`mode=max`) are generated on every build.
+- Images are signed with `cosign` keyless (GitHub OIDC).
+- Every build is scanned with Trivy; results land in the GitHub Security tab (Code Scanning).
+- Renovate keeps base image digests and the Keycloak version up to date.
 
-Details und Verifikationskommandos siehe [README.md](./README.md).
+See [README.md](./README.md) for details and verification commands.
