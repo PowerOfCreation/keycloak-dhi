@@ -198,7 +198,7 @@ jobs:
           ### Pull by digest (recommended, immutable)
 
           ```
-          docker pull __IMAGE__@__DIGEST__
+          docker pull __IMAGE__:__TAG__@__DIGEST__
           ```
 
           ### Pull by tag
