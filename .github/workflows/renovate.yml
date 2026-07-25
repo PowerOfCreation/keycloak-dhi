@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: renovatebot/github-action@6d859fc95779be83a0335ca704879b47e5d79641 # v46.1.16
+      - uses: renovatebot/github-action@3064367f740a1a91cca218698a63902689cce200 # v46.1.20
         with:
           renovate-version: 43.220.0@sha256:459b7e28aa54fa2fa7db83df6a2d6ad26de416a054ee554e7833203adf3d9a47
           configurationFile: renovate.json5
