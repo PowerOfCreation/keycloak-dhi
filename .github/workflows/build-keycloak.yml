@@ -16,7 +16,7 @@ jobs:
   build-push:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -44,15 +44,93 @@ jobs:
           KC=$(grep -oP 'FROM dhi.io/keycloak:\K[^ ]+' Dockerfile)
           echo "kc=$KC" >> "$GITHUB_OUTPUT"
 
+      - name: Release-Tag ermitteln
+        id: rel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KC: ${{ steps.ver.outputs.kc }}
+        run: |
+          prefix="${KC}-r"
+          last=$(gh release list --limit 200 --json tagName -q '.[].tagName' \
+            | awk -v p="$prefix" '
+                index($0, p) == 1 {
+                  s = substr($0, length(p) + 1)
+                  if (s ~ /^[0-9]+$/ && s + 0 > m) m = s + 0
+                }
+                END { print m + 0 }')
+          echo "tag=${prefix}$((last + 1))" >> "$GITHUB_OUTPUT"
+
       - name: Build & Push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
+            ${{ env.IMAGE }}:${{ steps.rel.outputs.tag }}
             ${{ env.IMAGE }}:${{ steps.ver.outputs.kc }}
             ${{ env.IMAGE }}:${{ steps.ver.outputs.kc }}-${{ github.sha }}
             ${{ env.IMAGE }}:latest
           provenance: true
           sbom: true
+
+      - name: Release erstellen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.rel.outputs.tag }}
+          KC: ${{ steps.ver.outputs.kc }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          IMAGE: ${{ env.IMAGE }}
+          SHA: ${{ github.sha }}
+        run: |
+          BASE=$(grep -m1 '^FROM dhi.io/' Dockerfile)
+
+          cat > notes.md <<'EOF'
+          ## Keycloak __KC__
+
+          **Image:** `__IMAGE__`
+          **Digest:** `__DIGEST__`
+
+          ### Pull per Digest (empfohlen, unveränderlich)
+
+          ```
+          docker pull __IMAGE__@__DIGEST__
+          ```
+
+          ### Pull per Tag
+
+          ```
+          docker pull __IMAGE__:__TAG__
+          ```
+
+          ### Gepushte Tags
+
+          - `__IMAGE__:__TAG__`
+          - `__IMAGE__:__KC__`
+          - `__IMAGE__:__KC__-__SHA__`
+          - `__IMAGE__:latest`
+
+          ### Plattformen
+
+          - linux/amd64
+          - linux/arm64
+
+          ### Basis-Image
+
+          `__BASE__`
+          EOF
+
+          sed -i \
+            -e "s|__KC__|${KC}|g" \
+            -e "s|__IMAGE__|${IMAGE}|g" \
+            -e "s|__DIGEST__|${DIGEST}|g" \
+            -e "s|__TAG__|${TAG}|g" \
+            -e "s|__SHA__|${SHA}|g" \
+            -e "s|__BASE__|${BASE}|g" \
+            notes.md
+
+          gh release create "$TAG" \
+            --title "Keycloak $KC ($TAG)" \
+            --notes-file notes.md \
+            --target "${SHA}"
