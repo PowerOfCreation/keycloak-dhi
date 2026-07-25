@@ -40,22 +40,28 @@ Jeder Build erzeugt:
 - **SBOM** (SPDX/CycloneDX, via BuildKit/Syft) — vollständiges Inventar der finalen Image-Stage,
   inklusive der aus dem Builder kopierten Keycloak-JARs.
 - **Provenance** (`mode=max`, SLSA) — Dockerfile, Build-Args und Base-Image-Digest sind enthalten.
-- **cosign-Signatur** (keyless, über GitHub OIDC) auf dem Image-Digest.
+- **cosign-Signatur** (keyless, über GitHub OIDC), `--recursive` — signiert sind der Multi-Arch-Index
+  *und* jedes einzelne Plattform-Manifest (inkl. der Attestation-Manifeste). `cosign verify`
+  funktioniert also sowohl auf dem Index-Digest als auch auf dem amd64- oder arm64-Kind-Digest.
+- **Smoke-Test** — bevor Tags gesetzt werden, wird der gepushte (noch ungetaggte) Digest gegen eine
+  echte Postgres-Instanz gestartet und `/health/ready` geprüft. Erst danach zeigen `:<version>` und
+  `:<version>-r<n>` überhaupt auf das Image; bei Fehlschlag bleibt es ein untagged Manifest ohne
+  Release.
 - **Trivy-Scan** (SARIF) — Ergebnisse im [Security-Tab](../../security/code-scanning) des Repos.
 
 ### Verifizieren
 
 ```bash
 # Signatur
-cosign verify docker.io/powerofcreation/keycloak@<digest> \
+cosign verify docker.io/powerofcreation/keycloak@sha256:<digest> \
   --certificate-identity-regexp '^https://github.com/PowerOfCreation/keycloak-dhi/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
 # SBOM abrufen
-docker buildx imagetools inspect docker.io/powerofcreation/keycloak@<digest> --format '{{ json .SBOM }}'
+docker buildx imagetools inspect docker.io/powerofcreation/keycloak@sha256:<digest> --format '{{ json .SBOM }}'
 
 # Provenance abrufen (zeigt u. a. den Base-Image-Digest von dhi.io/keycloak)
-docker buildx imagetools inspect docker.io/powerofcreation/keycloak@<digest> --format '{{ json .Provenance }}'
+docker buildx imagetools inspect docker.io/powerofcreation/keycloak@sha256:<digest> --format '{{ json .Provenance }}'
 
 # DHIs eigene signierte SBOM/VEX/CVE-Attestations der Basis direkt einsehen
 docker scout attest list dhi.io/keycloak:<version>
