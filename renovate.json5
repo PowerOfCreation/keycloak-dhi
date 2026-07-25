@@ -22,6 +22,14 @@
         '/^ghcr\\.io//',
       ],
     },
+    {
+      // Builder- (-dev) und Runtime-Tag müssen synchron bleiben, sonst baut
+      // die Builder-Stage eine andere Keycloak-Version als die Runtime erwartet.
+      matchPackageNames: [
+        'dhi.io/keycloak',
+      ],
+      groupName: 'keycloak (dhi builder + runtime)',
+    },
   ],
   extends: [
     'config:best-practices',

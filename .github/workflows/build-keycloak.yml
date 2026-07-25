@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write # cosign keyless signing
+      security-events: write # SARIF upload
     steps:
       - uses: actions/checkout@v4
 
@@ -41,7 +43,8 @@ jobs:
       - name: Keycloak-Version aus Dockerfile lesen
         id: ver
         run: |
-          KC=$(grep -oP 'FROM dhi.io/keycloak:\K[^ ]+' Dockerfile)
+          # Runtime-Stage = FROM-Zeile ohne "AS <name>" (Builder-Stage ist die -dev-Variante)
+          KC=$(awk '/^FROM dhi\.io\/keycloak:/ && !/ AS /{ match($0,/:[^@ ]+/); print substr($0,RSTART+1,RLENGTH-1) }' Dockerfile)
           echo "kc=$KC" >> "$GITHUB_OUTPUT"
 
       - name: Release-Tag ermitteln
@@ -71,9 +74,35 @@ jobs:
             ${{ env.IMAGE }}:${{ steps.rel.outputs.tag }}
             ${{ env.IMAGE }}:${{ steps.ver.outputs.kc }}
             ${{ env.IMAGE }}:${{ steps.ver.outputs.kc }}-${{ github.sha }}
-            ${{ env.IMAGE }}:latest
-          provenance: true
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.ver.outputs.kc }}
+            org.opencontainers.image.base.name=dhi.io/keycloak:${{ steps.ver.outputs.kc }}
+          provenance: mode=max
           sbom: true
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Image signieren (keyless, GitHub OIDC)
+        run: |
+          cosign sign --yes "${IMAGE}@${{ steps.build.outputs.digest }}"
+
+      - name: Trivy-Scan (SARIF, nicht blockierend)
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: "0"
+
+      - name: SARIF hochladen
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        continue-on-error: true
+        with:
+          sarif_file: trivy-results.sarif
 
       - name: Release erstellen
         env:
@@ -84,7 +113,7 @@ jobs:
           IMAGE: ${{ env.IMAGE }}
           SHA: ${{ github.sha }}
         run: |
-          BASE=$(grep -m1 '^FROM dhi.io/' Dockerfile)
+          BASE=$(grep '^FROM dhi\.io/' Dockerfile | grep -v ' AS ')
 
           cat > notes.md <<'EOF'
           ## Keycloak __KC__
@@ -109,7 +138,6 @@ jobs:
           - `__IMAGE__:__TAG__`
           - `__IMAGE__:__KC__`
           - `__IMAGE__:__KC__-__SHA__`
-          - `__IMAGE__:latest`
 
           ### Plattformen
 
@@ -119,6 +147,14 @@ jobs:
           ### Basis-Image
 
           `__BASE__`
+
+          ### Signatur verifizieren
+
+          ```
+          cosign verify __IMAGE__@__DIGEST__ \
+            --certificate-identity-regexp '^https://github.com/PowerOfCreation/keycloak-dhi/' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          ```
           EOF
 
           sed -i \
