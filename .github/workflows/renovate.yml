@@ -9,15 +9,18 @@ jobs:
   renovate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
+      # Renovate clones the repository itself and reads renovate.json5 from that
+      # clone, so no checkout is needed. Don't pass that file as
+      # configurationFile either: it would then double as global config, which is
+      # what forced global-only options like repositories into it.
       - uses: renovatebot/github-action@3064367f740a1a91cca218698a63902689cce200 # v46.1.20
         with:
           renovate-version: 43.220.0@sha256:459b7e28aa54fa2fa7db83df6a2d6ad26de416a054ee554e7833203adf3d9a47
-          configurationFile: renovate.json5
           token: ${{ secrets.RENOVATE_TOKEN }}
         env:
           LOG_LEVEL: debug
+          # Global-only option, so it lives here rather than in renovate.json5.
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
           # Same credentials as the build-push job (build-keycloak.yml),
           # so Renovate can resolve the DHI base from dhi.io.
           RENOVATE_HOST_RULES: >-
