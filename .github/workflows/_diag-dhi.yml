@@ -1,0 +1,46 @@
+name: diag-dhi
+on:
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Login to dhi.io
+        uses: docker/login-action@v3
+        with:
+          registry: dhi.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Pull runtime + dev variants
+        run: |
+          docker pull dhi.io/keycloak:26.7.0
+          docker pull dhi.io/keycloak:26.7.0-dev
+
+      - name: Inspect runtime variant
+        run: |
+          echo "=== runtime: User/Entrypoint/Cmd/WorkingDir ==="
+          docker inspect --format '{{.Config.User}} | entrypoint={{json .Config.Entrypoint}} | cmd={{json .Config.Cmd}} | workdir={{.Config.WorkingDir}}' dhi.io/keycloak:26.7.0
+          echo "=== runtime: shell check ==="
+          docker run --rm --entrypoint /bin/sh dhi.io/keycloak:26.7.0 -c 'echo shell-ok' || echo "NO SHELL (sh)"
+          docker run --rm --entrypoint /bin/bash dhi.io/keycloak:26.7.0 -c 'echo bash-ok' || echo "NO SHELL (bash)"
+          echo "=== runtime: /opt/keycloak contents ==="
+          docker run --rm --entrypoint /bin/sh dhi.io/keycloak:26.7.0 -c 'ls -la /opt/keycloak' || echo "cannot list (no shell)"
+
+      - name: Inspect dev variant
+        run: |
+          echo "=== dev: User/Entrypoint/Cmd ==="
+          docker inspect --format '{{.Config.User}} | entrypoint={{json .Config.Entrypoint}} | cmd={{json .Config.Cmd}}' dhi.io/keycloak:26.7.0-dev
+          echo "=== dev: shell check ==="
+          docker run --rm --entrypoint /bin/sh dhi.io/keycloak:26.7.0-dev -c 'echo shell-ok' || echo "NO SHELL (sh)"
+
+      - name: Try kc.sh build on dev variant
+        run: |
+          docker run --rm --entrypoint /bin/sh dhi.io/keycloak:26.7.0-dev -c '/opt/keycloak/bin/kc.sh build' || echo "kc.sh build FAILED"
+
+      - name: Try running runtime as-is (current repo ENTRYPOINT)
+        run: |
+          docker run --rm --user 65532:0 dhi.io/keycloak:26.7.0 --help 2>&1 | head -50 || echo "default entrypoint invocation FAILED"
