@@ -20,14 +20,14 @@ jobs:
       id-token: write # cosign keyless signing
       security-events: write # SARIF upload
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@v4
 
-      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
-      - uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
 
       # Pull der DHI-Basis von dhi.io (Docker-ID + PAT, kein Extra-Account)
       - name: Login to dhi.io
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        uses: docker/login-action@v3
         with:
           registry: dhi.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -35,7 +35,7 @@ jobs:
 
       # Push in deinen eigenen Namespace
       - name: Login to Docker Hub
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -65,7 +65,7 @@ jobs:
 
       - name: Build & Push
         id: build
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
@@ -83,14 +83,14 @@ jobs:
           sbom: true
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
+        uses: sigstore/cosign-installer@v3
 
       - name: Image signieren (keyless, GitHub OIDC)
         run: |
           cosign sign --yes "${IMAGE}@${{ steps.build.outputs.digest }}"
 
       - name: Trivy-Scan (SARIF, nicht blockierend)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
           format: sarif
@@ -98,7 +98,7 @@ jobs:
           exit-code: "0"
 
       - name: SARIF hochladen
-        uses: github/codeql-action/upload-sarif@4187e74d05793876e9989daffde9c3e66b4acd07 # v3.37.3
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         continue-on-error: true
         with:
