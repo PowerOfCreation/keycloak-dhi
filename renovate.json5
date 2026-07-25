@@ -23,8 +23,8 @@
       ],
     },
     {
-      // Builder- (-dev) und Runtime-Tag müssen synchron bleiben, sonst baut
-      // die Builder-Stage eine andere Keycloak-Version als die Runtime erwartet.
+      // Builder (-dev) and runtime tag must stay in sync, otherwise the
+      // builder stage would build a different Keycloak version than the runtime expects.
       matchPackageNames: [
         'dhi.io/keycloak',
       ],
