@@ -1,4 +1,6 @@
 {
+  // Repository config. Global/self-hosted options (repositories, autodiscover,
+  // host rules, ...) belong in .github/workflows/renovate.yml instead.
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   minimumReleaseAge: '48 hours',
   prHourlyLimit: 10,
