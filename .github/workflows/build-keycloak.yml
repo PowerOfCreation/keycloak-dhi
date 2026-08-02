@@ -50,6 +50,9 @@ jobs:
           # Runtime stage = FROM line without "AS <name>" (builder stage is the -dev variant)
           KC=$(awk '/^FROM dhi\.io\/keycloak:/ && !/ AS /{ match($0,/:[^@ ]+/); print substr($0,RSTART+1,RLENGTH-1) }' Dockerfile)
           echo "kc=$KC" >> "$GITHUB_OUTPUT"
+          # Same line, digest part - for org.opencontainers.image.base.digest
+          BASE_DIGEST=$(awk '/^FROM dhi\.io\/keycloak:/ && !/ AS /{ match($0,/@[^ ]+/); print substr($0,RSTART+1,RLENGTH-1) }' Dockerfile)
+          echo "base_digest=$BASE_DIGEST" >> "$GITHUB_OUTPUT"
 
       - name: Determine release tag
         id: rel
@@ -82,6 +85,10 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ steps.ver.outputs.kc }}
             org.opencontainers.image.base.name=dhi.io/keycloak:${{ steps.ver.outputs.kc }}
+            org.opencontainers.image.base.digest=${{ steps.ver.outputs.base_digest }}
+            org.opencontainers.image.title=keycloak-dhi
+            org.opencontainers.image.description=Hardened Keycloak on Docker Hardened Images, Postgres baked in
+            org.opencontainers.image.licenses=Apache-2.0
           provenance: mode=max
           sbom: true
 
