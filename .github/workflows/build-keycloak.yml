@@ -47,11 +47,25 @@ jobs:
       - name: Read Keycloak version from Dockerfile
         id: ver
         run: |
+          set -euo pipefail
           # Runtime stage = FROM line without "AS <name>" (builder stage is the -dev variant)
-          KC=$(awk '/^FROM dhi\.io\/keycloak:/ && !/ AS /{ match($0,/:[^@ ]+/); print substr($0,RSTART+1,RLENGTH-1) }' Dockerfile)
+          RUNTIME_FROM=$(awk '/^FROM dhi\.io\/keycloak:/ && !/ AS /{ print; exit }' Dockerfile)
+          if [ -z "$RUNTIME_FROM" ]; then
+            echo "::error::Could not find runtime dhi.io/keycloak FROM line in Dockerfile"
+            exit 1
+          fi
+          KC=$(awk -F'[:@]' '{ print $2 }' <<<"$RUNTIME_FROM")
+          if [ -z "$KC" ]; then
+            echo "::error::Could not parse Keycloak version from runtime FROM line: $RUNTIME_FROM"
+            exit 1
+          fi
           echo "kc=$KC" >> "$GITHUB_OUTPUT"
           # Same line, digest part - for org.opencontainers.image.base.digest
-          BASE_DIGEST=$(awk '/^FROM dhi\.io\/keycloak:/ && !/ AS /{ match($0,/@[^ ]+/); print substr($0,RSTART+1,RLENGTH-1) }' Dockerfile)
+          BASE_DIGEST=$(awk -F'@' '{ print $2 }' <<<"$RUNTIME_FROM")
+          if [ -z "$BASE_DIGEST" ]; then
+            echo "::error::Could not parse base digest from runtime FROM line: $RUNTIME_FROM"
+            exit 1
+          fi
           echo "base_digest=$BASE_DIGEST" >> "$GITHUB_OUTPUT"
 
       - name: Determine release tag
