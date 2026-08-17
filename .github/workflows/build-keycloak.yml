@@ -74,15 +74,34 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KC: ${{ steps.ver.outputs.kc }}
         run: |
+          set -euo pipefail
+          # gh does not retry automatically; transient GitHub API outages
+          # (HTTP 503) otherwise reset the computed tag to "${prefix}1" below.
+          retry() {
+            local n=1 max=5
+            until "$@"; do
+              [ "$n" -ge "$max" ] && { echo "::error::gh command failed after $max attempts"; return 1; }
+              echo "::warning::gh call failed (attempt $n/$max), retrying in $((n * 5))s"
+              sleep "$((n * 5))"
+              n=$((n + 1))
+            done
+          }
           prefix="${KC}-r"
-          last=$(gh release list --limit 200 --json tagName -q '.[].tagName' \
+          last=$(retry gh release list --limit 200 --json tagName -q '.[].tagName' \
             | awk -v p="$prefix" '
                 index($0, p) == 1 {
                   s = substr($0, length(p) + 1)
                   if (s ~ /^[0-9]+$/ && s + 0 > m) m = s + 0
                 }
                 END { print m + 0 }')
-          echo "tag=${prefix}$((last + 1))" >> "$GITHUB_OUTPUT"
+          tag="${prefix}$((last + 1))"
+          # Belt-and-suspenders: never silently re-create a tag that already
+          # exists (e.g. a deleted release whose git tag was left behind).
+          if [ "$(git ls-remote --tags origin "$tag")" != "" ] || gh release view "$tag" >/dev/null 2>&1; then
+            echo "::error::Refusing to create release for already-existing tag $tag"
+            exit 1
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
       # Push without tags (by digest) - tags are only set on this exact
       # manifest below, after the smoke test passes. That way no consumer
@@ -270,7 +289,14 @@ jobs:
             -e "s|__BASE__|${BASE}|g" \
             notes.md
 
-          gh release create "$TAG" \
+          # Retry transient gh API outages (HTTP 503) instead of failing this
+          # pipeline step on a one-off unavailable GitHub API server.
+          n=1; max=5
+          until gh release create "$TAG" \
             --title "Keycloak $KC ($TAG)" \
             --notes-file notes.md \
-            --target "${SHA}"
+            --target "${SHA}"; do
+            [ "$n" -ge "$max" ] && { echo "::error::gh release create failed after $max attempts"; exit 1; }
+            echo "::warning::gh release create failed (attempt $n/$max), retrying in $((n * 5))s"
+            sleep "$((n * 5))"; n=$((n + 1))
+          done
