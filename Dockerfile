@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1@sha256:87999aa3d42bdc6bea60565083ee17e86d1f3339802f543c0d03998580f9cb89
+# syntax=docker/dockerfile:1@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32
 
 # ---- Stage 1: optimized Keycloak build on hardened DHI dev base (Postgres baked in) ----
 FROM dhi.io/keycloak:26.7.0-dev@sha256:2e2110f6db8e4d8a7637c0c4168e276d61024190e18788339bc77e773e881094 AS builder
