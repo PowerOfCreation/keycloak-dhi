@@ -48,7 +48,7 @@ jobs:
         id: ver
         run: |
           set -euo pipefail
-          # Runtime stage = FROM line without "AS <name>" (builder stage is the -dev variant)
+          # Runtime stage = FROM line without "AS <name>" (second FROM line)
           RUNTIME_FROM=$(awk '/^FROM dhi\.io\/keycloak:/ && !/ AS /{ print; exit }' Dockerfile)
           if [ -z "$RUNTIME_FROM" ]; then
             echo "::error::Could not find runtime dhi.io/keycloak FROM line in Dockerfile"

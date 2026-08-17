@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32
 
-# ---- Stage 1: optimized Keycloak build on hardened DHI dev base (Postgres baked in) ----
-FROM dhi.io/keycloak:26.7.0-dev@sha256:16286290456427378c2dabd6179588b9eb303795a9e16e43431de5bbb5a6c5f8 AS builder
+# ---- Stage 1: optimized Keycloak build on the hardened DHI base (Postgres baked in) ----
+FROM dhi.io/keycloak:26.7.0@sha256:c27bef6dd76f67ff13a572cb112dff9b03d319e03c89a77a8086c5dcf0fcc9cd AS builder
 ENV KC_DB=postgres \
     KC_HEALTH_ENABLED=true \
     KC_METRICS_ENABLED=true
