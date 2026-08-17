@@ -102,7 +102,7 @@ jobs:
             org.opencontainers.image.base.digest=${{ steps.ver.outputs.base_digest }}
             org.opencontainers.image.title=keycloak-dhi
             org.opencontainers.image.description=Hardened Keycloak on Docker Hardened Images, Postgres baked in
-            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.licenses=NOASSERTION
           provenance: mode=max
           sbom: true
 
