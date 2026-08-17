@@ -74,6 +74,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KC: ${{ steps.ver.outputs.kc }}
         run: |
+          set -euo pipefail
           # gh does not retry automatically; transient GitHub API outages
           # (HTTP 503) otherwise reset the computed tag to "${prefix}1" below.
           retry() {
