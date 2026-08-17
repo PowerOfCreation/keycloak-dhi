@@ -24,12 +24,13 @@ There is deliberately no `latest` tag — every consumer pins explicitly to a ve
 
 ## How the image is hardened
 
-Both build stages use DHI:
+Both build stages use DHI — the hardened non-dev `dhi.io/keycloak:<version>` distribution
+(including Docker-maintained CVE patches, e.g. Netty overrides), not the unhardened upstream
+build:
 
-- **Builder:** `dhi.io/keycloak:<version>-dev` — Docker's own hardened Keycloak distribution
-  (including Docker-maintained CVE patches, e.g. Netty overrides), not the unhardened upstream
-  build.
-- **Runtime:** `dhi.io/keycloak:<version>` — runs nonroot (`uid=gid=65532`), minimal package base.
+- **Builder:** runs `kc.sh build` to produce the optimized distribution (Postgres, health, metrics
+  baked in). The builder stage carries no extra dev tooling — only the built result is copied on.
+- **Runtime:** the same image, running nonroot (`uid=gid=65532`), minimal package base.
 
 The result therefore has JARs, JRE, and OS consistently from the hardened distribution, not just
 the OS layer.
@@ -110,7 +111,7 @@ docker buildx imagetools inspect docker.io/powerofcreation/keycloak@sha256:<dige
 
 Per Apache-2.0 §4(b), this image is a modified version of `dhi.io/keycloak`. The modifications are:
 
-- `kc.sh build` is run in the `-dev` stage with `KC_DB=postgres`, `KC_HEALTH_ENABLED=true` and
+- `kc.sh build` is run in the builder stage with `KC_DB=postgres`, `KC_HEALTH_ENABLED=true` and
   `KC_METRICS_ENABLED=true`, producing an optimized Keycloak distribution.
 - That build result (`/opt/keycloak/`) is copied into the hardened runtime stage, and the default
   command is `start --optimized`.
