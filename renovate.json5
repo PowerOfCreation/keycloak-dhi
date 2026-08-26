@@ -28,6 +28,10 @@
         'dhi.io/keycloak',
       ],
       groupName: 'keycloak (dhi builder + runtime)',
+      // dhi.io does not publish releaseTimestamps, so with Renovate's default
+      // minimumReleaseAgeBehaviour=timestamp-required every version bump stays
+      // pending forever and internalChecksFilter=strict suppresses the PR.
+      minimumReleaseAgeBehaviour: 'timestamp-optional',
     },
   ],
   extends: [
