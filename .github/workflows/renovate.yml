@@ -15,7 +15,7 @@ jobs:
       # what forced global-only options like repositories into it.
       - uses: renovatebot/github-action@e09d604f8f803bb527bd8321ed5be06c460b8682 # v46.2.2
         with:
-          renovate-version: 43.288.0@sha256:3b72fc4274c56f65f53dcd4dcbed3143289358e0a2d96f7af215e6cf1923e5f6
+          renovate-version: 44.82.5@sha256:e93745c01c635c3431de5cddfe3e75f9825aa3bab5995076b9c15e83452c9d7b
           token: ${{ secrets.RENOVATE_TOKEN }}
         env:
           LOG_LEVEL: debug
