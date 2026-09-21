@@ -46,7 +46,11 @@ Every build produces:
   *and* every individual platform manifest (including the attestation manifests). `cosign verify`
   therefore works on both the index digest and the amd64 or arm64 child digest.
 - **Smoke test** — before tags are set, the pushed (still untagged) digest is started against a
-  real Postgres instance and checked for `/health/ready`. Only after that do `:<version>` and
+  real Postgres instance with a read-only root filesystem and all Linux capabilities dropped
+  (`--read-only --cap-drop=ALL`), and checked for `/health/ready`. Writable tmpfs mounts are
+  limited to `/tmp` and `/opt/keycloak/data` (256 MiB each); the latter belongs to UID/GID 65532.
+  These mounts are ephemeral for the smoke test; deployments must choose persistence for runtime
+  data as needed. Only after that do `:<version>` and
   `:<version>-r<n>` point at the image at all; on failure it stays an untagged manifest with no
   release.
 - **Trivy scan** (SARIF) — results in the repo's [Security tab](../../security/code-scanning).
