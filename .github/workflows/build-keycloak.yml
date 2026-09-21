@@ -132,7 +132,7 @@ jobs:
             exit 1
           fi
 
-      - name: Smoke test (boot the pushed digest against Postgres)
+      - name: Smoke test (read-only root filesystem, no capabilities)
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
@@ -150,7 +150,11 @@ jobs:
           # baked into the builder stage (see Dockerfile) - don't set them here.
           # KC_HTTP_ENABLED/KC_HOSTNAME_STRICT are needed because "start --optimized"
           # otherwise expects TLS and fails without a certificate.
+          # Only temporary files and Keycloak runtime data need writable mounts.
           docker run -d --name kc --network kc-smoke -p 9000:9000 \
+            --read-only --cap-drop=ALL \
+            --tmpfs /tmp:rw,nosuid,nodev,mode=1777,size=256m \
+            --tmpfs /opt/keycloak/data:rw,nosuid,nodev,uid=65532,gid=65532,mode=0750,size=256m \
             -e KC_DB_URL_HOST=pg -e KC_DB_USERNAME=keycloak -e KC_DB_PASSWORD=smoke \
             -e KC_HTTP_ENABLED=true -e KC_HOSTNAME_STRICT=false \
             -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=smoke-only \
